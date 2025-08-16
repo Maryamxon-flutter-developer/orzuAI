@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:orzulab/cart_provider.dart';
+import 'package:orzulab/providers/cart_provider.dart';
 import 'package:orzulab/pages/pay.dart';
 
 import 'package:provider/provider.dart';

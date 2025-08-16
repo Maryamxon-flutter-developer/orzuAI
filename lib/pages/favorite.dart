@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:orzulab/pages/detail_page.dart';
-import 'package:orzulab/pages/home_page.dart'; // StaggeredGridItem uchun
-import 'package:orzulab/style_provider.dart';
+import 'package:orzulab/providers/style_provider.dart';
+import 'package:orzulab/widgets/staggered_grid_item.dart';
 import 'package:provider/provider.dart';
 
 class FavoritePage extends StatelessWidget {

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:orzulab/bottom_bar_page.dart';
-import 'package:orzulab/pages/home_page.dart';
+import 'package:orzulab/pages/bottom_bar_page.dart';
+
 import 'package:orzulab/providers/auth_provider.dart';
-import 'package:orzulab/sign_up.dart';
+import 'package:orzulab/pages/sign_up.dart';
 import 'package:provider/provider.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -30,22 +31,24 @@ class _LoginPageState extends State<LoginPage> {
 
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      
-      final success = await authProvider.login(
-        emailController.text.trim(),
-        passwordController.text.trim(),
-      );
 
-      // Asinxron operatsiyadan keyin vidjet hali ham mavjudligini tekshirish
-      if (mounted) {
+      try {
+        final success = await authProvider.login(
+          emailController.text.trim(),
+          passwordController.text.trim(),
+        );
+
+        // Asinxron operatsiyadan keyin vidjet hali ham mavjudligini tekshirish
+        if (!mounted) return;
+
         if (success) {
           // Muvaffaqiyatli bo'lsa, asosiy sahifaga o'tish va orqadagi sahifalarni yopish
+          // Tokenni saqlash kerak emas, AuthProvider buni o'zi bajaradi.
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const BottomNavBarpage()),
             (Route<dynamic> route) => false,
           );
         } else {
-          // Muvaffaqiyatsiz bo'lsa, xatolikni ko'rsatish
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(authProvider.error ?? 'Login failed. Please try again.'),
@@ -53,9 +56,20 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
         }
+      } catch (e) {
+        if (!mounted) return;
+        // Xatolikni to'liq ko'rish uchun konsolga chiqarish
+        print('!!! LOGIN PAGE ERROR: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -139,59 +153,63 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 30),
 
                         // Login button
-                        Center(
-                          child: GestureDetector(
-                            onTap: authProvider.isLoading ? null : _login,
-                            child: Container(
-                              width: double.infinity,
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: authProvider.isLoading ? null : _login,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              disabledBackgroundColor: Colors.grey,
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                color: authProvider.isLoading ? Colors.grey : Colors.black,
+                              shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(30),
                               ),
-                              child: Center(
-                                child: authProvider.isLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Login',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                              ),
                             ),
-                          ),
+                            child: authProvider.isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Login',
+                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                                  ),
+                            ),
                         ),
 
                         const SizedBox(height: 100),
 
                         // Sign Up link
-                        Center(
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => SignUpPage()),
-                              );
-                            },
-                            child: const Text(
-                              "Don't have an account? Sign Up",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                                decoration: TextDecoration.underline,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              "Don't have an account? ",
+                              style: TextStyle(fontSize: 14, color: Colors.black87),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => SignUpPage()),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                'Sign Up',
+                                style: TextStyle(
+                                    fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

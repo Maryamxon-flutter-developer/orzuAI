@@ -45,5 +45,18 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Rasm tanlash va kamera uchun ruxsatnomalar -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ilova profil rasmini o'rnatish uchun galereyangizdan foydalanadi.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Ilova profil rasmini olish va "Try On" funksiyasi uchun kameradan foydalanadi.</string>
+
+	<!-- url_launcher uchun ruxsatnomalar -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>mailto</string>
+		<string>tel</string>
+	</array>
 </dict>
 </plist>

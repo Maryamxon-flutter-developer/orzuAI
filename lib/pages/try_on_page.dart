@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:orzulab/pages/home_page.dart'; // StyleItem uchun
+import 'package:orzulab/models/style_item.dart'; // StyleItem uchun
 import 'package:permission_handler/permission_handler.dart';
 
 class TryOnPage extends StatefulWidget {
@@ -133,9 +133,18 @@ class _TryOnPageState extends State<TryOnPage> {
         Positioned.fill(
           child: Opacity(
             opacity: 0.7, // Rasm shaffofligi
-            child: Image.asset(
+            child: Image.network(
               widget.item.imageUrl,
               fit: BoxFit.contain,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return const Center(child: CircularProgressIndicator());
+              },
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.error_outline,
+                color: Colors.white,
+                size: 50,
+              ),
             ),
           ),
         ),
@@ -157,7 +166,17 @@ class _TryOnPageState extends State<TryOnPage> {
             style: TextStyle(fontSize: 18, color: Colors.grey),
           ),
           const SizedBox(height: 40),
-          Image.asset(widget.item.imageUrl, height: 250),
+          Image.network(
+            widget.item.imageUrl,
+            height: 250,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return const SizedBox(
+                  height: 250, child: Center(child: CircularProgressIndicator()));
+            },
+            errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.error_outline, size: 80, color: Colors.grey),
+          ),
         ],
       ),
     );

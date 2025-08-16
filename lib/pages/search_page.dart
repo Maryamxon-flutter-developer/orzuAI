@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:orzulab/pages/detail_page.dart';
 import 'package:orzulab/pages/pay.dart';
-import 'package:orzulab/pages/home_page.dart'; // For StyleItem and StaggeredGridItem
-import 'package:orzulab/style_provider.dart';
+import 'package:orzulab/providers/style_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:orzulab/models/style_item.dart';
 
 
 
@@ -337,9 +337,18 @@ class _SearchPageState extends State<SearchPage> {
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(12),
                     ),
-                    child: Image.asset(
+                    child: Image.network(
                       item.imageUrl,
                       fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2.0));
+                      },
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.error_outline,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
                   Positioned(

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:orzulab/pages/home_page.dart'; // StyleItem klassi shu yerda deb taxmin qilindi
+import 'package:orzulab/models/style_item.dart';
 
 /// Savatdagi bitta mahsulotni ifodalovchi klass
 class CartItem {

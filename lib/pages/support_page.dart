@@ -3,31 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-void main() {
-  runApp(ChatSupportApp());
-}
+import 'package:orzulab/providers/auth_provider.dart';
+import 'package:provider/provider.dart';
 
-class ChatSupportApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Chat Support',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: ChatSupportScreen(),
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
+// Messaging API Service class (nomi o'zgartirildi)
+class MessagingApiService {
+  // TUZATISH: Asosiy manzil (baseUrl) to'g'irlandi. Ortiqcha '/products/' qismi
+  // olib tashlandi. Endi xabar yuborish so'rovlari to'g'ri manzilga
+  // (.../messaging/chats/) yuboriladi.
+  static const String baseUrl = 'https://beautyaiapp.duckdns.org';
 
-// API Service class
-class ApiService {
-  static const String baseUrl = 'http://13.60.62.242:8080';
-  // static const String token = '...'; // <-- BU QATORNI O'CHIRAMIZ. TOKEN ENDI DINAMIK BO'LADI.
-
-  // Chat list olish
+  // Chat list olish (Bu funksiya hozircha ishlatilmayapti, lekin kelajak uchun qoldirildi)
   static Future<List<dynamic>> getChatsList({
     required String token,
   }) async {
@@ -35,19 +21,18 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/messaging/chats/'),
         headers: {
-          'Authorization': 'Bearer $token', // Parametrdan kelgan token ishlatiladi
+          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
       );
-
+      
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        return json.decode(utf8.decode(response.bodyBytes));
       } else {
-        throw Exception('Failed to load chats');
+        throw Exception('Failed to load chats: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error getting chats: $e');
-      return [];
+      throw e;
     }
   }
 
@@ -58,26 +43,28 @@ class ApiService {
     String? title,
   }) async {
     try {
+      final requestBody = {
+        'participant_id': participantId,
+        'title': title ?? 'Support Chat',
+      };
+      
       final response = await http.post(
         Uri.parse('$baseUrl/messaging/chats/'),
         headers: {
-          'Authorization': 'Bearer $token', // Parametrdan kelgan token ishlatiladi
+          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: json.encode({
-          'participant_id': participantId,
-          'title': title ?? 'Support Chat',
-        }),
+        body: json.encode(requestBody),
       );
-
-      if (response.statusCode == 201) {
-        return json.decode(response.body);
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return json.decode(utf8.decode(response.bodyBytes));
       } else {
-        throw Exception('Failed to create chat');
+        throw Exception('Failed to create chat: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print('Error creating chat: $e');
-      return null;
+      throw e;
     }
   }
 
@@ -90,19 +77,28 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/messaging/chats/$chatId/messages/'),
         headers: {
-          'Authorization': 'Bearer $token', // Parametrdan kelgan token ishlatiladi
+          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
       );
-
+      
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        // Agar javob results kalitiga ega bo'lsa
+        if (data is Map && data.containsKey('results')) {
+          return data['results'];
+        }
+        // Agar to'g'ridan-to'g'ri array bo'lsa
+        else if (data is List) {
+          return data;
+        }
+        // Aks holda bo'sh array qaytarish
+        return [];
       } else {
-        throw Exception('Failed to load messages');
+        throw Exception('Failed to load messages: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error getting messages: $e');
-      return [];
+      throw e;
     }
   }
 
@@ -110,30 +106,34 @@ class ApiService {
   static Future<Map<String, dynamic>?> sendMessage({
     required String token,
     required String chatId,
+    required int senderId, // senderId parametri qo'shildi
     required String message,
     String? messageType = 'text',
   }) async {
     try {
+      final requestBody = {
+        'message': message,
+        'chat': int.tryParse(chatId), // Xato xabariga asosan 'chat' maydoni qo'shildi
+        'sender': senderId, // Xato xabariga asosan 'sender' maydoni qo'shildi
+      };
+      
       final response = await http.post(
         Uri.parse('$baseUrl/messaging/chats/$chatId/messages/'),
         headers: {
-          'Authorization': 'Bearer $token', // Parametrdan kelgan token ishlatiladi
+          'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: json.encode({
-          'message': message,
-          'message_type': messageType,
-        }),
+        body: json.encode(requestBody),
       );
-
-      if (response.statusCode == 201) {
-        return json.decode(response.body);
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return json.decode(utf8.decode(response.bodyBytes));
       } else {
-        throw Exception('Failed to send message');
+        throw Exception('Failed to send message: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print('Error sending message: $e');
-      return null;
+      throw e;
     }
   }
 }
@@ -154,26 +154,29 @@ class Message {
   });
 
   // API dan kelgan ma'lumotlarni Message obyektiga o'girish
-  factory Message.fromJson(Map<String, dynamic> json) {
+  // **TUZATISH:** Endi bu metod joriy foydalanuvchi ID sini qabul qiladi
+  factory Message.fromJson(Map<String, dynamic> json, int currentUserId) {
+    final senderId = json['sender'];
     return Message(
       id: json['id'].toString(),
       text: json['message'] ?? '',
-      isUser: json['is_from_user'] ?? false,
-      timestamp: DateTime.parse(json['created_at']),
+      // **TUZATISH:** `isUser` xabardagi `sender` ID bilan joriy foydalanuvchi ID si mos kelishiga qarab aniqlanadi
+      isUser: senderId != null && senderId == currentUserId,
+      timestamp: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       status: MessageStatus.delivered,
     );
   }
 }
 
-enum MessageStatus { sending, sent, delivered, read }
+enum MessageStatus { sending, sent, delivered, read, failed }
 
 class ChatSupportScreen extends StatefulWidget {
   final String? chatId;
-  
-  ChatSupportScreen({this.chatId});
+
+  const ChatSupportScreen({super.key, this.chatId});
 
   @override
-  _ChatSupportScreenState createState() => _ChatSupportScreenState();
+  State<ChatSupportScreen> createState() => _ChatSupportScreenState();
 }
 
 class _ChatSupportScreenState extends State<ChatSupportScreen>
@@ -187,6 +190,8 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
   bool isOnline = true;
   bool isLoading = false;
   String? currentChatId;
+  String? currentToken;
+  int? _currentUserId; // **YANGI:** Joriy foydalanuvchi ID sini saqlash uchun
 
   late AnimationController _typingAnimationController;
   late Animation<double> _typingAnimation;
@@ -196,16 +201,12 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
     super.initState();
     currentChatId = widget.chatId;
     _setupAnimations();
-    if (currentChatId != null) {
-      _loadChatMessages();
-    } else {
-      _createNewChat();
-    }
+    _initializeChat();
   }
 
   void _setupAnimations() {
     _typingAnimationController = AnimationController(
-      duration: Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
     _typingAnimation = Tween<double>(
@@ -214,83 +215,178 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
     ).animate(_typingAnimationController);
   }
 
-  // BU FUNKSIYA FAQAT NAMUNA UCHUN.
-  // Haqiqiy ilovada bu funksiya login qilingan foydalanuvchining
-  // tokenini `shared_preferences` kabi xavfsiz joydan o'qib oladi.
-  Future<String?> _getUserToken() async {
-    // Hozircha, test uchun tokenni shu yerda qat'iy belgilab turamiz.
-    // Login sahifasi qo'shilgandan so'ng bu joyni o'zgartirish kerak.
-    return 'YOUR_ACCESS_TOKEN';
+  // Chatni boshlash
+  Future<void> _initializeChat() async {
+    // TUZATISH: Tokenni markazlashgan AuthProvider'dan olamiz.
+    // Bu ilovaning boshqa qismlari bilan bir xil ishlashini ta'minlaydi
+    // va 401 (Unauthorized) xatosini oldini oladi.
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.token;
+
+    if (token == null || !mounted) {
+      _showErrorSnackBar('Foydalanuvchi avtorizatsiyadan o\'tmagan. Iltimos, qayta login qiling.');
+      return;
+    }
+    currentToken = token;
+
+    // **TUZATISH:** Foydalanuvchi ID sini tokendan bir marta o'qib olamiz
+    try {
+      final payload = _parseJwt(token);
+      if (mounted) {
+        setState(() {
+          _currentUserId = payload['user_id'];
+        });
+      }
+    } catch (e) {
+      _showErrorSnackBar('Tokenni o\'qishda xatolik: $e');
+      return; // Agar token yaroqsiz bo'lsa, davom etmaymiz
+    }
+
+    if (currentChatId != null) {
+      await _loadChatMessages();
+    } else {
+      await _createNewChat();
+    }
   }
 
   // API dan xabarlarni yuklash
   Future<void> _loadChatMessages() async {
-    if (currentChatId == null) return;
-    final token = await _getUserToken();
-    if (token == null) return _showErrorSnackBar('Foydalanuvchi avtorizatsiyadan o\'tmagan');
-    setState(() {
-      isLoading = true;
-    });
-    try {
-      final apiMessages = await ApiService.getChatMessages(token: token, chatId: currentChatId!);
+    if (currentChatId == null || currentToken == null) return;
+    
+    // **TUZATISH:** Xabarlarni yuklashdan oldin foydalanuvchi ID si mavjudligini tekshiramiz
+    if (_currentUserId == null) {
+      _showErrorSnackBar('Foydalanuvchi ID si topilmadi. Qayta urinib ko\'ring.');
+      // ID ni olish uchun qayta ishga tushirishga harakat qilamiz
+      await _initializeChat();
+      return;
+    }
+
+    if (mounted) {
       setState(() {
-        messages = apiMessages.map((json) => Message.fromJson(json)).toList();
-        isLoading = false;
+        isLoading = true;
       });
+    }
+
+    try {
+      final apiMessages = await MessagingApiService.getChatMessages(
+        token: currentToken!,
+        chatId: currentChatId!,
+      );
+      
+      if (mounted) {
+        setState(() {
+          // **TUZATISH:** `fromJson` ga foydalanuvchi ID sini uzatamiz
+          messages = apiMessages.map((json) => Message.fromJson(json, _currentUserId!)).toList();
+          isLoading = false;
+        });
+      }
+      
       _scrollToBottom();
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
       _showErrorSnackBar('Xabarlarni yuklashda xatolik: $e');
     }
   }
 
   // Yangi chat yaratish
   Future<void> _createNewChat() async {
-    final token = await _getUserToken();
-    if (token == null) return _showErrorSnackBar('Foydalanuvchi avtorizatsiyadan o\'tmagan');
+    if (currentToken == null) {
+      _showErrorSnackBar('Token topilmadi. Iltimos, qayta login qiling.');
+      return;
+    }
 
-    setState(() {
-      isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+      });
+    }
 
     try {
-      final newChat = await ApiService.createChat(
-        token: token,
-        participantId: 'support_agent_id', // Support agent ID sini kiriting
+      // Bu yerda support agent ID sini o'zingizning API ga mos qilib o'zgartiring
+      final newChat = await MessagingApiService.createChat(
+        token: currentToken!,
+        participantId: '1', // Bu qiymatni API dokumentatsiyasiga qarab o'zgartiring (masalan, admin IDsi)
         title: 'Support Chat',
       );
 
-      if (newChat != null) {
+      if (newChat != null && mounted) {
         setState(() {
           currentChatId = newChat['id'].toString();
-          isLoading = false;
         });
-        _addWelcomeMessage();
-      } else {
-        setState(() {
-          isLoading = false;
-        });
+        await _loadChatMessages();
+      } else if (mounted) { 
+        setState(() => isLoading = false);
         _showErrorSnackBar('Chat yaratishda xatolik');
       }
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
       _showErrorSnackBar('Chat yaratishda xatolik: $e');
     }
   }
 
-  void _addWelcomeMessage() {
-    setState(() {
-      messages.add(Message(
-        id: 'welcome_msg',
-        text: "Hello! I am your assistant. How can I help you today?",
-        isUser: false,
-        timestamp: DateTime.now(),
-      ));
-    });
+  // Serverdan javob kelguncha avtomatik javob va yozish animatsiyasini ko'rsatish
+  Future<void> _simulateSupportResponse() async {
+    // 1. "Yozmoqda..." animatsiyasini ko'rsatish
+    if (mounted) {
+      setState(() {
+        isTyping = true;
+      });
+      _typingAnimationController.repeat();
+      _scrollToBottom();
+    }
+
+    // 2. Bir necha soniya kutish
+    await Future.delayed(const Duration(seconds: 2));
+
+    // 3. Animatsiyani to'xtatish va avtomatik javobni qo'shish
+    if (mounted) {
+      setState(() {
+        isTyping = false;
+        _typingAnimationController.stop();
+        messages.add(Message(
+          id: 'support_reply_${DateTime.now().millisecondsSinceEpoch}',
+          text: 'Rahmat, murojaatingiz qabul qilindi. Tez orada javob beramiz.',
+          isUser: false, // Bu qo'llab-quvvatlash xizmatidan
+          timestamp: DateTime.now(),
+        ));
+      });
+      _scrollToBottom();
+    }
+  }
+  // JWT tokenni qismlarga ajratib, ma'lumot qismini (payload) qaytaradi
+  Map<String, dynamic> _parseJwt(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) {
+      throw Exception('invalid token');
+    }
+
+    final payload = _decodeBase64(parts[1]);
+    final payloadMap = json.decode(payload);
+    if (payloadMap is! Map<String, dynamic>) {
+      throw Exception('invalid payload');
+    }
+
+    return payloadMap;
+  }
+
+  // Base64Url formatidagi matnni standart Base64 ga o'girib, decode qiladi
+  String _decodeBase64(String str) {
+    String output = str.replaceAll('-', '+').replaceAll('_', '/');
+    switch (output.length % 4) {
+      case 0: break;
+      case 2: output += '=='; break;
+      case 3: output += '='; break;
+      default: throw Exception('Illegal base64url string!"');
+    }
+    return utf8.decode(base64Url.decode(output));
   }
 
   @override
@@ -304,76 +400,91 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
 
   // Xabar yuborish (API bilan)
   Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty || currentChatId == null) return;
+    if (_messageController.text.trim().isEmpty || 
+        currentChatId == null || 
+        currentToken == null) return;
 
-    final token = await _getUserToken();
-    if (token == null) return _showErrorSnackBar('Foydalanuvchi avtorizatsiyadan o\'tmagan');
+    // **TUZATISH:** Xabar yuborishdan oldin foydalanuvchi ID si mavjudligini tekshiramiz
+    if (_currentUserId == null) {
+      _showErrorSnackBar('Xabar yuborish uchun foydalanuvchi ID si topilmadi.');
+      return;
+    }
 
     String messageText = _messageController.text.trim();
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     
-    // UI da xabarni darhol ko'rsatish
+    // UI da xabarni darhol ko'rsatish (Optimistic UI)
     Message tempMessage = Message(
-      id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      id: tempId,
       text: messageText,
       isUser: true,
       timestamp: DateTime.now(),
       status: MessageStatus.sending,
     );
 
-    setState(() {
-      messages.add(tempMessage);
-    });
+    if (mounted) {
+      setState(() {
+        messages.add(tempMessage);
+      });
+    }
 
     _messageController.clear();
     _scrollToBottom();
 
     try {
       // API ga xabar yuborish
-      final response = await ApiService.sendMessage(
-        token: token,
+      final response = await MessagingApiService.sendMessage(
+        token: currentToken!,
         chatId: currentChatId!,
         message: messageText,
+        senderId: _currentUserId!, // Saqlangan ID dan foydalanamiz
       );
 
-      if (response != null) {
-        // Temporary xabarni real xabar bilan almashtirish
+      if (response != null && mounted) {
+        // Vaqtinchalik xabarni serverdan kelgan haqiqiy xabar bilan almashtirish
         setState(() {
-          int index = messages.indexWhere((msg) => msg.id == tempMessage.id);
+          int index = messages.indexWhere((msg) => msg.id == tempId);
           if (index != -1) {
+            // Xabarni serverdan kelgan ID bilan yangilab, statusini o'zgartiramiz
             messages[index] = Message(
               id: response['id'].toString(),
-              text: messageText,
+              text: tempMessage.text, // Yuborilgan matnni saqlab qolamiz
               isUser: true,
-              timestamp: DateTime.parse(response['created_at']),
+              timestamp: DateTime.tryParse(response['created_at'] ?? '') ?? tempMessage.timestamp,
               status: MessageStatus.delivered,
             );
           }
         });
-
-        // Yangi xabarlarni yuklash (javob uchun)
-        await _loadChatMessages();
+        // Serverdan javob kelguncha avtomatik javobni ko'rsatish
+        _simulateSupportResponse();
       } else {
-        // Xatolik bo'lsa temporary xabarni o'chirish
-        setState(() {
-          messages.removeWhere((msg) => msg.id == tempMessage.id);
-        });
-        _showErrorSnackBar('Xabar yuborishda xatolik');
+        // Agar javob kutilgandek bo'lmasa, xatolik sifatida belgilaymiz
+        throw Exception('Serverdan noto\'g\'ri javob keldi.');
       }
     } catch (e) {
-      setState(() {
-        messages.removeWhere((msg) => msg.id == tempMessage.id);
-      });
+      // Xatolik bo'lsa, vaqtinchalik xabarni "failed" statusiga o'tkazamiz
+      if (mounted) {
+        setState(() {
+          int index = messages.indexWhere((msg) => msg.id == tempId);
+          if (index != -1) {
+            messages[index] = Message(id: tempId, text: messageText, isUser: true, timestamp: tempMessage.timestamp, status: MessageStatus.failed);
+          }
+        });
+      }
       _showErrorSnackBar('Xabar yuborishda xatolik: $e');
     }
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: const Color.fromARGB(255, 60, 60, 60),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   void _scrollToBottom() {
@@ -381,7 +492,7 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
@@ -392,7 +503,7 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
     return Align(
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
         child: Column(
           crossAxisAlignment: message.isUser 
               ? CrossAxisAlignment.end 
@@ -402,21 +513,21 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.75,
               ),
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: message.isUser ? Colors.blue[500] : Colors.grey[700],
                 borderRadius: BorderRadius.circular(18).copyWith(
                   bottomRight: message.isUser 
-                      ? Radius.circular(4) 
-                      : Radius.circular(18),
+                      ? const Radius.circular(4) 
+                      : const Radius.circular(18),
                   bottomLeft: message.isUser 
-                      ? Radius.circular(18) 
-                      : Radius.circular(4),
+                      ? const Radius.circular(18) 
+                      : const Radius.circular(4),
                 ),
               ),
               child: Text(
                 message.text,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                 ),
@@ -424,7 +535,7 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
             ),
             if (message.isUser)
               Padding(
-                padding: EdgeInsets.only(top: 2, right: 8),
+                padding: const EdgeInsets.only(top: 2, right: 8),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -435,7 +546,7 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
                         color: Colors.grey[600],
                       ),
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     _buildMessageStatusIcon(message.status),
                   ],
                 ),
@@ -463,6 +574,8 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
         return Icon(Icons.done_all, size: 12, color: Colors.grey[600]);
       case MessageStatus.read:
         return Icon(Icons.done_all, size: 12, color: Colors.blue);
+      case MessageStatus.failed:
+        return Icon(Icons.error_outline, size: 12, color: Colors.red);
     }
   }
 
@@ -470,12 +583,12 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.grey[700],
           borderRadius: BorderRadius.circular(18).copyWith(
-            bottomLeft: Radius.circular(4),
+            bottomLeft: const Radius.circular(4),
           ),
         ),
         child: AnimatedBuilder(
@@ -485,9 +598,9 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildTypingDot(0),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 _buildTypingDot(1),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 _buildTypingDot(2),
               ],
             );
@@ -528,20 +641,20 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: PreferredSize(
+      appBar: PreferredSize( // AppBar'ni o'zgartirish
         preferredSize: Size.fromHeight(70),
         child: AppBar(
           backgroundColor: Colors.white,
           elevation: 1,
           leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: Colors.grey[800]),
+            icon: Icon(Icons.arrow_back_ios, color: Colors.grey[800]),
             onPressed: () => Navigator.of(context).pop(),
           ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Help and Support',
+                'Support Chat',
                 style: TextStyle(
                   color: Colors.grey[800],
                   fontSize: 18,
@@ -558,9 +671,9 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
                       shape: BoxShape.circle,
                     ),
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Text(
-                    isOnline ? 'Active now' : 'Offline',
+                    isOnline ? 'Onlayn' : 'Oflayn',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 12,
@@ -585,22 +698,23 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
         ),
       ),
       body: isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Yuklanmoqda...'),
+                ],
+              ),
+            )
           : Column(
               children: [
-                if (currentChatId != null)
-                  Container(
-                    padding: EdgeInsets.all(8),
-                    color: Colors.blue[50],
-                    child: Text(
-                      'Chat ID: $currentChatId',
-                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
-                    ),
-                  ),
+                // Chat ID ko'rsatuvchi qism olib tashlandi
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: messages.length + (isTyping ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == messages.length && isTyping) {
@@ -630,7 +744,7 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
                             controller: _messageController,
                             focusNode: _focusNode,
                             decoration: InputDecoration(
-                              hintText: 'Type message here',
+                              hintText: 'Xabar yozing...',
                               hintStyle: TextStyle(color: Colors.grey[500]),
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
@@ -650,7 +764,7 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: currentChatId != null ? Colors.blue : Colors.grey,
+                            color: currentChatId != null ? const Color.fromARGB(255, 73, 74, 75) : Colors.grey,
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -668,47 +782,78 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
     );
   }
 
-  void _showOptionsMenu() {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.refresh),
-                title: Text('Reload Messages'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _loadChatMessages();
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('Chat Info'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showChatInfo();
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.clear_all),
-                title: Text('Create New Chat'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _createNewChat();
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+void _showOptionsMenu() {
+  showModalBottomSheet(
+    context: context,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (context) {
+      return Container(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.refresh),
+              title: Text('Refresh messages'),
+              onTap: () {
+                Navigator.pop(context);
+                _loadChatMessages();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.info_outline),
+              title: Text('Chat information'),
+              onTap: () {
+                Navigator.pop(context);
+                _showChatInfo();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.clear_all),
+              title: Text('Create new chat'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  messages.clear();
+                  currentChatId = null;
+                });
+                _createNewChat();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.logout),
+              title: Text('Clear token'),
+              onTap: () {
+                Navigator.pop(context);
+                _clearToken();
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+
+  // Tokenni tozalash funksiyasi (debug uchun)
+  Future<void> _clearToken() async {
+    try {
+      // TUZATISH: Tokenni tozalash uchun markazlashtirilgan AuthProvider'dan
+      // foydalanamiz. Bu `AuthService` mavjud emasligi xatosini tuzatadi.
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.logout();
+      setState(() {
+        currentToken = null;
+        currentChatId = null;
+        messages.clear();
+      });
+      _showErrorSnackBar('Token tozalandi. Iltimos, qayta login qiling.');
+    } catch (e) {
+      print('Error clearing token: $e');
+    }
   }
 
   void _showChatInfo() {
@@ -716,25 +861,27 @@ class _ChatSupportScreenState extends State<ChatSupportScreen>
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Chat Information'),
+          title: Text('Chat Ma\'lumotlari'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Chat ID: ${currentChatId ?? "Not created"}'),
+              Text('Chat ID: ${currentChatId ?? "Yaratilmagan"}'),
               SizedBox(height: 8),
-              Text('Status: ${isOnline ? "Online" : "Offline"}'),
+              Text('Holat: ${isOnline ? "Onlayn" : "Oflayn"}'),
               SizedBox(height: 8),
-              Text('Messages: ${messages.length}'),
+              Text('Xabarlar soni: ${messages.length}'),
               SizedBox(height: 8),
               if (messages.isNotEmpty)
-                Text('Started: ${_formatTime(messages.first.timestamp)}'),
+                Text('Boshlangan: ${_formatTime(messages.first.timestamp)}'),
+              SizedBox(height: 8),
+              Text('Token mavjud: ${currentToken != null ? "Ha" : "Yo\'q"}'),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
+              child: Text('Yopish'),
             ),
           ],
         );

@@ -1,93 +1,91 @@
 // lib/cart_provider.dart
 
-import 'package:flutter/foundation.dart';
-import 'package:orzulab/pages/home_page.dart'; // StyleItem klassini import qilish
-
+import 'package:flutter/material.dart';
+import 'package:orzulab/models/style_item.dart';
 
 // Savatdagi har bir mahsulotning holatini saqlash uchun yordamchi class
 // Bu yerda mahsulotning o'zi va uning soni (quantity) saqlanadi
 class CartItem {
   final StyleItem product;
   int quantity;
+  final String size;
+  final Color color;
 
-  CartItem({required this.product, this.quantity = 1});
+  CartItem({
+    required this.product,
+    required this.quantity,
+    required this.size,
+    required this.color,
+  });
 }
 
 class CartProvider with ChangeNotifier {
-  // Savatdagi mahsulotlarni saqlash uchun Map.
-  // Mahsulot ID'si (key) orqali ishlash qulay va tez.
-  final Map<String, CartItem> _items = {};
+  final List<CartItem> _items = [];
 
-  // Tashqaridan _items'ga to'g'ridan-to'g'ri o'zgartirish kiritishni cheklash uchun
-  // uning nusxasini (copy) qaytaramiz.
-  Map<String, CartItem> get items {
-    return {..._items};
+  List<CartItem> get items => [..._items];
+
+  /// Savatdagi umumiy mahsulotlar sonini qaytaradi (har birining quantity'sini hisobga olgan holda)
+  int get totalItemsCount {
+    int count = 0;
+    for (var item in _items) {
+      count += item.quantity;
+    }
+    return count;
   }
 
-  // Savatdagi noyob mahsulotlar sonini qaytaradi.
-  int get itemCount {
+  /// Savatdagi noyob mahsulot turlari soni
+  int get uniqueItemCount {
     return _items.length;
   }
 
-  // Savatdagi barcha mahsulotlarning umumiy narxini hisoblaydi.
+  /// Savatdagi barcha mahsulotlarning umumiy narxini hisoblaydi.
   double get totalAmount {
     var total = 0.0;
-    _items.forEach((key, cartItem) {
+    for (var cartItem in _items) {
       total += cartItem.product.price * cartItem.quantity;
-    });
+    }
     return total;
   }
 
-  // Savatga mahsulot qo'shish metodi
-  void addItem(StyleItem product) {
-    if (_items.containsKey(product.id)) {
-      // Agar mahsulot savatda mavjud bo'lsa, uning sonini bittaga oshiramiz.
-      _items.update(
-        product.id,
-        (existingCartItem) => CartItem(
-          product: existingCartItem.product,
-          quantity: existingCartItem.quantity + 1,
-        ),
-      );
+  /// Mahsulotni savatga qo'shish
+  void addToCart(StyleItem product, int quantity, String size, Color color) {
+    // Agar savatda xuddi shu mahsulot va o'lcham mavjud bo'lsa, sonini oshiramiz
+    final existingIndex = _items.indexWhere(
+        (item) => item.product.id == product.id && item.size == size);
+
+    if (existingIndex >= 0) {
+      _items[existingIndex].quantity += quantity;
     } else {
-      // Agar mahsulot yangi bo'lsa, uni savatga qo'shamiz.
-      _items.putIfAbsent(
-        product.id,
-        () => CartItem(product: product),
-      );
+      // Aks holda, yangi mahsulot sifatida qo'shamiz
+      _items.add(CartItem(
+          product: product, quantity: quantity, size: size, color: color));
     }
-    // O'zgarishlar haqida UI'ni xabardor qilish. Bu eng muhim qator!
+    // O'zgarishlar haqida widget'larni xabardor qilamiz
     notifyListeners();
   }
 
-  // Mahsulotni savatdan butunlay olib tashlash
-  void removeItem(String productId) {
-    _items.remove(productId);
+  /// Mahsulot sonini bittaga oshiradi
+  void increaseQuantity(CartItem cartItem) {
+    cartItem.quantity++;
     notifyListeners();
   }
 
-  // Mahsulot sonini bittaga kamaytirish
-  void removeSingleItem(String productId) {
-    if (!_items.containsKey(productId)) {
-      return; // Agar bunday mahsulot bo'lmasa, hech narsa qilmaymiz
+  /// Mahsulot sonini bittaga kamaytiradi
+  void decreaseQuantity(CartItem cartItem) {
+    // Faqatgina miqdor 1 dan katta bo'lsa kamaytiramiz
+    if (cartItem.quantity > 1) {
+      cartItem.quantity--;
+      notifyListeners();
     }
-    if (_items[productId]!.quantity > 1) {
-      // Agar mahsulot soni 1 dan ko'p bo'lsa, sonini kamaytiramiz
-      _items.update(
-        productId,
-        (existingCartItem) => CartItem(
-          product: existingCartItem.product,
-          quantity: existingCartItem.quantity - 1,
-        ),
-      );
-    } else {
-      // Agar soni 1 ta bo'lsa, ro'yxatdan butunlay o'chiramiz
-      _items.remove(productId);
-    }
+  }
+
+  /// Mahsulotni savatdan o'chirib tashlaydi
+  void removeItem(CartItem cartItem) {
+    _items.remove(cartItem);
     notifyListeners();
   }
 
-  // Savatni butunlay tozalash
+  /// Savatni butunlay tozalash
   void clear() {
     _items.clear();
     notifyListeners();

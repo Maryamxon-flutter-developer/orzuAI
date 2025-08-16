@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:orzulab/login_page.dart';
+import 'package:orzulab/pages/login_page.dart';
 import 'package:orzulab/providers/auth_provider.dart';
-import 'package:orzulab/verify_email_page.dart'; // Yangi sahifa
+import 'package:orzulab/pages/verify_email_page.dart'; // Yangi sahifa
 import 'package:provider/provider.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -164,40 +164,55 @@ class _SignUpPageState extends State<SignUpPage> {
                         const SizedBox(height: 40),
                         
                         // Sign Up Button
-                        GestureDetector(
-                          onTap: authProvider.isLoading ? null : _signUp,
-                          child: Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: authProvider.isLoading ? Colors.grey : Colors.black,
-                              borderRadius: BorderRadius.circular(25),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: authProvider.isLoading ? null : _signUp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              disabledBackgroundColor: Colors.grey,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
                             ),
-                            child: Center(
-                              child: authProvider.isLoading
-                                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                  : const Text(
-                                      'Sign Up',
-                                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                                    ),
+                            child: authProvider.isLoading
+                                ? const SizedBox(
+                                    height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Text(
+                                    'Sign Up',
+                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                                  ),
                             ),
-                          ),
                         ),
                         const SizedBox(height: 60),
                         
                         // Sign In link
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => const LoginPage()),
-                            );
-                          },
-                          child: const Text(
-                            "Already have an account? Sign In",
-                            style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w400),
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              "Already have an account? ",
+                              style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w400),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                'Sign In',
+                                style: TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

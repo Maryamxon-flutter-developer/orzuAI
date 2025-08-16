@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:orzulab/cart_provider.dart';
-import 'package:orzulab/pages/home_page.dart';
+import 'package:orzulab/providers/cart_provider.dart'; // TO'G'RI: Fayl 'providers' papkasida
+import 'package:orzulab/models/style_item.dart';
 import 'package:orzulab/pages/shopping_page.dart';
 import 'package:orzulab/pages/try_on_page.dart';
-import 'package:orzulab/style_provider.dart';
+import 'package:orzulab/providers/style_provider.dart'; // TO'G'RI: Provider shu yerda joylashgan
 import 'package:provider/provider.dart';
 
 class DetailPage extends StatefulWidget {
@@ -45,11 +45,9 @@ class _DetailPageState extends State<DetailPage> {
   ///stack widget 
   Widget _buildImageWithActions(BuildContext context) {
     // Provider'ga quloq solib, joriy holatni olamiz
-    final provider = context.watch<StyleProvider>();
-    // Provider'dagi ro'yxatdan shu mahsulotni topamiz, chunki uning 'isFavorite' holati eng so'nggisi
-    final currentItem = provider.allItems.firstWhere(
-      (i) => i.id == widget.item.id,
-      orElse: () => widget.item);
+    // Mahsulotning eng so'nggi holatini to'g'ridan-to'g'ri ID orqali olamiz
+    final currentItem =
+        context.watch<StyleProvider>().getItemById(widget.item.id) ?? widget.item;
 
     return Stack(
       fit: StackFit.expand,
@@ -71,9 +69,18 @@ class _DetailPageState extends State<DetailPage> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: Image.asset(
+            child: Image.network(
               widget.item.imageUrl,
               fit: BoxFit.cover,
+              // Rasm yuklanayotganda yoki xatolik bo'lganda ko'rsatiladigan vidjet
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return const Center(child: CircularProgressIndicator());
+              },
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.error_outline,
+                color: Colors.grey,
+              ),
             ),
           ),
         ),

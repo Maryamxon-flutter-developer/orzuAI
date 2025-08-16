@@ -1,26 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:orzulab/login_page.dart';
+import 'package:orzulab/pages/login_page.dart';
 import 'package:orzulab/pages/support_page.dart';
-
-void main() {
-  runApp(OrzuLabApp());
-}
-
-class OrzuLabApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Orzu Lab AI',
-      theme: ThemeData(
-        primarySwatch: Colors.grey,
-        fontFamily: 'Roboto',
-      ),
-      home: OrzuLabHomePage(),
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CarouselItem {
   final String mainImage;
@@ -48,12 +30,15 @@ class CatalogItem {
   });
 }
 
-class OrzuLabHomePage extends StatefulWidget {
+// Klass nomini aniqroq qilish uchun `OnboardingPage` deb o'zgartiramiz
+class OnboardingPage extends StatefulWidget {
+  const OnboardingPage({super.key});
+
   @override
-  _OrzuLabHomePageState createState() => _OrzuLabHomePageState();
+  _OnboardingPageState createState() => _OnboardingPageState();
 }
 
-class _OrzuLabHomePageState extends State<OrzuLabHomePage> {
+class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController(viewportFraction: 0.85);
   int _currentCarouselIndex = 0;
   Timer? _carouselTimer;
@@ -117,6 +102,20 @@ class _OrzuLabHomePageState extends State<OrzuLabHomePage> {
     });
   }
 
+  // Onboarding tugaganini bildirish va xotiraga saqlash uchun funksiya
+  Future<void> _onboardingTugadi() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Xotiraga "onboardingKorildi" ni `true` qilib saqlaymiz
+    await prefs.setBool('onboardingKorildi', true);
+
+    if (mounted) {
+      // Foydalanuvchini login sahifasiga o'tkazamiz va orqaga qaytish imkonini yo'qotamiz
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -164,13 +163,8 @@ class _OrzuLabHomePageState extends State<OrzuLabHomePage> {
           ),
           Row(
             children: [
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => LoginPage()),
-                  );
-                },
+              TextButton( // "Skip" tugmasi bosilganda _onboardingTugadi funksiyasini chaqiramiz
+                onPressed: _onboardingTugadi,
                 child: Text(
                   'Skip',
                   style: TextStyle(color: Colors.black, fontSize: 16),
